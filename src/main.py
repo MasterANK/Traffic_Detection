@@ -1,63 +1,62 @@
+import torch
 import cv2
 import numpy as np
+import time
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
-# Load default MobileNetSSD model
-prototxt = r'MobileNet-SSD Model\MobileNetSSD_deploy.prototxt'
-model = r'MobileNet-SSD Model\MobileNetSSD_deploy.caffemodel'
-max_confidence = 0.1
+# from repo 'ultralytics/yolov5'
+model_path = r'YOLO Model\yolov5n.pt'
+# Load YOLOv5 model from the local path
+model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
 
-# Load the model
-net = cv2.dnn.readNetFromCaffe(prototxt, model)
+model.eval()
 
-class_names = [
-    "background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", 
-    "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", 
-    "pottedplant", "sheep", "sofa", "train", "tvmonitor"
-]
+video_path = r"..\Test Data\road Traffic 2.mp4"
+cap = cv2.VideoCapture(video_path)
 
-interested_classes = ["car", "bus", "motorbike", "bicycle"]
-
-path = r'D:\Python\Traffic_Detection\Test Data\road Traffic 2.mp4'
-
-cap = cv2.VideoCapture(path)
-target_width = 800
 if not cap.isOpened():
-    print("Error: Could not open the video.")
+    print("Error opening video stream or file")
     exit()
 
-colors = np.random.uniform(0, 255, size=(len(class_names), 3))
+target_width = 800
+
+frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+fps = int(cap.get(cv2.CAP_PROP_FPS))
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+prev_frame_time = 0
+new_frame_time = 0
 
 while cap.isOpened():
-    ret , image = cap.read()
-    # aspect_ratio = image.shape[1] / image.shape[0]
-    # target_height = int(target_width / aspect_ratio)
-    # image = cv2.resize(image, (target_width, target_height))
-    height, width = image.shape[:2]
+    ret , frame = cap.read()
+    if not ret:
+        break
 
-    # Preprocess the image as BLOB (Binary Large Object)
-    blob_scale = 0.007843
-    blob_mean = 127.5
-    blob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)), blob_scale, (300, 300), blob_mean)
+    aspect_ratio = frame.shape[1] / frame.shape[0]
+    target_height = int(target_width / aspect_ratio)
+    frame = cv2.resize(frame, (target_width, target_height))
+    results = model(frame)
+    
+    detection = results.pandas().xyxy[0]
+    car_detections = detection[detection['name'] == 'car']
 
-    # Set the input to the network
-    net.setInput(blob)
+    new_frame_time = time.time()
+    true_fps = int(1/(new_frame_time-prev_frame_time)) 
+    prev_frame_time = new_frame_time 
 
-    # Run the Detection
-    detections = net.forward()
+    #write fps on the frame
+    cv2.putText(frame, f"FPS: {true_fps}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    for i in range(detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-        if confidence > max_confidence:
-            class_id = int(detections[0, 0, i, 1])
-            if class_names[class_id] not in interested_classes:
-                continue
-            legend = f"{class_names[class_id]}: {confidence:.2f}%"
-            box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
-            (startX, startY, endX, endY) = box.astype("int")
-            cv2.rectangle(image, (startX, startY), (endX, endY), colors[class_id], 2)
-            cv2.putText(image, legend, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[class_id], 2)
+    for _,row in car_detections.iterrows():
+        x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        confidence = f"Car: {row['confidence']:.2f}"
+        cv2.putText(frame, confidence, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
 
-    cv2.imshow("Traffic Detection", image)
+    cv2.imshow("Video", frame)
+
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
