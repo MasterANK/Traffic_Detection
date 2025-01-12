@@ -41,6 +41,7 @@ while cap.isOpened():
     
     detection = results.pandas().xyxy[0]
     car_detections = detection[detection['name'] == 'car']
+    car_count = len(car_detections)
 
     new_frame_time = time.time()
     true_fps = int(1/(new_frame_time-prev_frame_time)) 
@@ -48,6 +49,8 @@ while cap.isOpened():
 
     #write fps on the frame
     cv2.putText(frame, f"FPS: {true_fps}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    #put total number of cars on the frame below the fps
+    cv2.putText(frame, f"Total Cars: {car_count}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     for _,row in car_detections.iterrows():
         x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
