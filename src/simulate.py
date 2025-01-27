@@ -22,10 +22,18 @@ lanes = {
     "west" : []
 }
 
+stop_positions = {
+    "north": height // 2 + 80,
+    "south": height // 2 - 100,
+    "east": width // 2 - 80,
+    "west": width // 2 + 80,
+}
+
 class car_factory:
     def __init__(self, lane, car_color):
         self.lane = lane
         self.car_color = car_color
+        self.crossed = False
 
         if lane == "north":
             self.x, self.y = width // 2 - car_widht // 2 - 15, height  # Start from bottom
@@ -49,12 +57,86 @@ class car_factory:
     
 
     def move(self):
+        if self.crossed:
+            self.x += self.dx
+            self.y += self.dy
+            return 
+
+        for light in traffic_lights.values():
+            if light.lane == self.lane and light.is_red():
+                if  (self.lane == "north" and self.y < stop_positions["north"]) or \
+                    (self.lane == "south" and self.y > stop_positions["south"]) or \
+                    (self.lane == "east" and self.x < stop_positions["east"]) or \
+                    (self.lane == "west" and self.x > stop_positions["west"]):
+                    self.car_color = (255, 0, 0)
+                    return
+
         self.x += self.dx
-        self.y += self.dy  
+        self.y += self.dy 
+
+        if  (self.lane == "north" and self.y < height // 2) or \
+                (self.lane == "south" and self.y > height // 2) or \
+                (self.lane == "east" and self.x < width // 2) or \
+                (self.lane == "west" and self.x > width // 2):
+            self.car_color = (0, 255, 0)
+            self.crossed = True 
 
     def draw(self, screen):
         pygame.draw.rect(screen, self.car_color, (self.x, self.y, car_widht, car_height))   
 
+
+class Traffic_light:
+    def __init__(self, x, y, direction, lane):
+        self.x = x
+        self.y = y
+        self.direction = direction
+        self.lane = lane
+        self.state = "RED"
+
+    def update(self, current_phase):
+        phases = ["north", "south", "east", "west"]
+        if phases[current_phase] == self.lane:
+            self.state = "GREEN"
+        else:
+            self.state = "RED"
+    
+    def draw(self, screen):
+        if self.state == "RED":
+            color =  (255, 0, 0)
+        else:
+            color =  (0, 255, 0)
+        pygame.draw.circle(screen, color, (self.x, self.y), 10)
+    
+    def draw_arrow(self, screen):
+        arrow_color = (0, 0, 0)  # Black arrow
+        if self.lane == "north":
+            pygame.draw.polygon(screen, arrow_color, [(self.x + 0, self.y + 15), (self.x - 10, self.y + 30), (self.x + 10, self.y + 30)])
+        elif self.lane == "south": 
+            pygame.draw.polygon(screen, arrow_color, [(self.x + 0, self.y + 30), (self.x - 10, self.y + 15), (self.x + 10, self.y + 15)])
+        elif self.lane == "east":
+            pygame.draw.polygon(screen, arrow_color, [(self.x - 15, self.y - 30), (self.x - 15, self.y - 15), (self.x + 10, self.y - 20)])
+        elif self.lane == "west":
+            pygame.draw.polygon(screen, arrow_color, [(self.x + 15, self.y - 30), (self.x + 15, self.y - 15), (self.x - 10, self.y - 20)])
+    def is_red(self):
+        return self.state == "RED"
+
+class TrafficController:
+    def __init__(self):
+        self.phase = 0 # 0 = North ; 1 = South ; 2 = East ; 3 = West
+        self.timer = 0
+        self.switch_time = 10 * 60
+    def update(self):
+        self.timer += 1
+        if self.timer >= self.switch_time:
+            self.timer = 0
+            self.phase = (self.phase + 1) % 4
+
+traffic_lights = {
+    "north" : Traffic_light(width // 2 + 70, height//2 + 70, "vertical", "north"),
+    "south" : Traffic_light(width // 2 - 70, height//2 + 70, "vertical", "south"),
+    "east" : Traffic_light(width // 2 - 70, height//2 - 70, "horizontal", "east"),
+    "west" : Traffic_light(width // 2 + 70, height//2 - 70, "horizontal", "west")
+}
 
 def add_cars():
     for lane in lanes.keys():
@@ -65,6 +147,8 @@ def add_cars():
 running = True
 clock = pygame.time.Clock()
 frame_count = 0
+
+Traffic_Controller = TrafficController()
 
 while running:
     screen.fill(white)
@@ -90,6 +174,13 @@ while running:
         for car in lanes[lane]:
             car.move()
             car.draw(screen)
+
+    Traffic_Controller.update()
+
+    for light in traffic_lights.values():
+        light.update(Traffic_Controller.phase)
+        light.draw(screen)
+        light.draw_arrow(screen)
 
     pygame.display.flip()  # Update display
     clock.tick(60)  # Limit FPS to 60
