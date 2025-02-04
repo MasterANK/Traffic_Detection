@@ -34,6 +34,8 @@ class car_factory:
         self.lane = lane
         self.car_color = car_color
         self.crossed = False
+        self.y_sensor = 50
+        self.x_sensor = 30
 
         if lane == "north":
             self.x, self.y = width // 2 - car_widht // 2 - 15, height  # Start from bottom
@@ -66,20 +68,36 @@ class car_factory:
             if light.lane == self.lane and light.is_red():
                 if  (self.lane == "north" and self.y < stop_positions["north"]) or \
                     (self.lane == "south" and self.y > stop_positions["south"]) or \
-                    (self.lane == "east" and self.x < stop_positions["east"]) or \
-                    (self.lane == "west" and self.x > stop_positions["west"]):
+                    (self.lane == "east" and self.x > stop_positions["east"]) or \
+                    (self.lane == "west" and self.x < stop_positions["west"]):
                     self.car_color = (255, 0, 0)
                     return
+        if self.near_car(lanes[self.lane]):
+            return
 
         self.x += self.dx
         self.y += self.dy 
 
         if  (self.lane == "north" and self.y < height // 2) or \
                 (self.lane == "south" and self.y > height // 2) or \
-                (self.lane == "east" and self.x < width // 2) or \
-                (self.lane == "west" and self.x > width // 2):
+                (self.lane == "east" and self.x > width // 2) or \
+                (self.lane == "west" and self.x < width // 2):
             self.car_color = (0, 255, 0)
             self.crossed = True 
+        
+    def near_car(self, cars):
+        for car in cars:
+            if car == self:
+                continue
+            if self.lane == "north" and 0 < (self.y - car.y) < self.y_sensor and self.x == car.x:
+                    return True
+            elif self.lane == "south" and 0 < (car.y - self.y) < self.y_sensor and self.x == car.x:
+                    return True
+            elif self.lane == "west" and 0 < (self.x - car.x) < self.x_sensor and self.y == car.y:
+                    return True 
+            elif self.lane == "east" and 0 < (car.x - self.x) < self.x_sensor and self.y == car.y:
+                    return True
+        return False
 
     def draw(self, screen):
         pygame.draw.rect(screen, self.car_color, (self.x, self.y, car_widht, car_height))   
@@ -166,11 +184,18 @@ while running:
     pygame.draw.line(screen, line_color, (width // 2, 0), (width // 2, height), 3)  # Vertical line
     pygame.draw.line(screen, line_color, (0, height // 2), (width, height // 2), 3)  # Horizontal line
 
+    for test in stop_positions:
+        if test == "north" or test == "south":
+            pygame.draw.circle(screen, (225, 225, 0), (width // 2, stop_positions[test]), 10)
+        else:
+            pygame.draw.circle(screen, (255, 225, 0), (stop_positions[test], height // 2), 10)
+
     # Add cars
     if frame_count % 60 == 0:
         add_cars()
     
     for lane in lanes.keys():
+        lanes[lane] = [ncar for ncar in lanes[lane] if ncar.x > -100 and ncar.x < width + 100 and ncar.y > -100 and ncar.y < height + 100] 
         for car in lanes[lane]:
             car.move()
             car.draw(screen)
