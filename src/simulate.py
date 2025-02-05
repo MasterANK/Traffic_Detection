@@ -13,7 +13,7 @@ road_color = (50,50,50)
 line_color = (255,255,0)
 
 car_widht, car_height = 20, 40
-car_speed = 2
+car_speed = 1.5 #2
 
 lanes = {
     "north" : [],
@@ -57,7 +57,6 @@ class car_factory:
             self.dx, self.dy = -car_speed, 0  # Move left
             self.width, self.height = car_height, car_widht  # Swap size for horizontal movement
     
-
     def move(self):
         if self.crossed:
             self.x += self.dx
@@ -78,10 +77,10 @@ class car_factory:
         self.x += self.dx
         self.y += self.dy 
 
-        if  (self.lane == "north" and self.y < height // 2) or \
-                (self.lane == "south" and self.y > height // 2) or \
-                (self.lane == "east" and self.x > width // 2) or \
-                (self.lane == "west" and self.x < width // 2):
+        if  (self.lane == "north" and self.y < stop_positions["north"] - 10) or \
+                (self.lane == "south" and self.y > stop_positions["south"] + 10) or \
+                (self.lane == "east" and self.x > stop_positions["east"] + 10) or \
+                (self.lane == "west" and self.x < stop_positions["west"] - 10):
             self.car_color = (0, 255, 0)
             self.crossed = True 
         
@@ -111,15 +110,20 @@ class Traffic_light:
         self.lane = lane
         self.state = "RED"
 
-    def update(self, current_phase):
+    def update(self, current_phase, is_yellow):
         phases = ["north", "south", "east", "west"]
-        if phases[current_phase] == self.lane:
+        self.is_yellow = is_yellow
+        if is_yellow and phases[current_phase] == self.lane:
+            self.state = "YELLOW"
+        elif phases[current_phase] == self.lane:
             self.state = "GREEN"
         else:
             self.state = "RED"
     
     def draw(self, screen):
-        if self.state == "RED":
+        if self.state == "YELLOW":
+            color =  (255, 225, 0)
+        elif self.state == "RED":
             color =  (255, 0, 0)
         else:
             color =  (0, 255, 0)
@@ -136,18 +140,26 @@ class Traffic_light:
         elif self.lane == "west":
             pygame.draw.polygon(screen, arrow_color, [(self.x + 15, self.y - 30), (self.x + 15, self.y - 15), (self.x - 10, self.y - 20)])
     def is_red(self):
-        return self.state == "RED"
+        return self.state in ["RED", "YELLOW"]
 
 class TrafficController:
     def __init__(self):
         self.phase = 0 # 0 = North ; 1 = South ; 2 = East ; 3 = West
         self.timer = 0
-        self.switch_time = 10 * 60
+        self.switch_time = 4 * 60
+        self.yellow_time = 1 * 60
+        self.is_yellow = False
     def update(self):
         self.timer += 1
-        if self.timer >= self.switch_time:
-            self.timer = 0
-            self.phase = (self.phase + 1) % 4
+        if self.is_yellow:
+            if self.timer >= self.yellow_time:
+                self.timer = 0
+                self.is_yellow = False
+                self.phase = (self.phase + 1) % 4
+        else:
+            if self.timer >= self.switch_time:
+                self.timer = 0
+                self.is_yellow = True
 
 traffic_lights = {
     "north" : Traffic_light(width // 2 + 70, height//2 + 70, "vertical", "north"),
@@ -158,7 +170,7 @@ traffic_lights = {
 
 def add_cars():
     for lane in lanes.keys():
-        if np.random.random() < 0.3:  # 50% chance a car is added per lane
+        if np.random.random() < 0.5:  # 50% chance a car is added per lane
             car_color = list(np.random.choice(range(256), size=3))
             lanes[lane].append(car_factory(lane, car_color))
 
@@ -186,7 +198,10 @@ while running:
 
     for test in stop_positions:
         if test == "north" or test == "south":
-            pygame.draw.circle(screen, (225, 225, 0), (width // 2, stop_positions[test]), 10)
+            if test == "north":
+                pygame.draw.circle(screen, (225, 225, 0), (width // 2, stop_positions[test]), 10)
+            else:
+                pygame.draw.circle(screen, (225, 225, 225), (width // 2, stop_positions[test]), 10)
         else:
             pygame.draw.circle(screen, (255, 225, 0), (stop_positions[test], height // 2), 10)
 
@@ -203,7 +218,7 @@ while running:
     Traffic_Controller.update()
 
     for light in traffic_lights.values():
-        light.update(Traffic_Controller.phase)
+        light.update(Traffic_Controller.phase, Traffic_Controller.is_yellow)
         light.draw(screen)
         light.draw_arrow(screen)
 
