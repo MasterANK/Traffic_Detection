@@ -12,7 +12,7 @@ model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
 
 model.eval()
 
-video_path = r"..\Test Data\road Traffic 2.mp4"
+video_path = r"..\Test Data\ambulance.mp4" #Test Data\ambulance.mp4
 cap = cv2.VideoCapture(video_path)
 
 if not cap.isOpened():
@@ -40,7 +40,7 @@ while cap.isOpened():
     results = model(frame)
     
     detection = results.pandas().xyxy[0]
-    car_detections = detection[detection['name'] == 'car']
+    car_detections = detection[detection['name'].isin(['car', 'truck'])]
     car_count = len(car_detections)
 
     new_frame_time = time.time()
@@ -55,8 +55,12 @@ while cap.isOpened():
     for _,row in car_detections.iterrows():
         x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        confidence = f"Car: {row['confidence']:.2f}"
-        cv2.putText(frame, confidence, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+        if(row['name'] == 'truck' and row['confidence'] > 0.4 and (x2-x1)*(y2-y1) > 20000):
+            confidence = f"Ambulance: {row['confidence']:.2f}"
+            cv2.putText(frame, confidence, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,0,255), 2)
+        else:
+            confidence = f"Car: {row['confidence']:.2f}"
+            cv2.putText(frame, confidence, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
 
     cv2.imshow("Video", frame)
 

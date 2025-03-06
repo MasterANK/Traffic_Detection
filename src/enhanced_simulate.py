@@ -72,6 +72,7 @@ class car_factory:
                     self.car_color = (255, 0, 0)
                     return
         if self.near_car(lanes[self.lane]):
+            self.car_color = (255,0,0)
             return
 
         self.x += self.dx
@@ -141,6 +142,16 @@ class Traffic_light:
             pygame.draw.polygon(screen, arrow_color, [(self.x + 15, self.y - 30), (self.x + 15, self.y - 15), (self.x - 10, self.y - 20)])
     def is_red(self):
         return self.state in ["RED", "YELLOW"]
+    
+def count_stopped_cars():
+    stopped_cars = {lane: 0 for lane in lanes.keys()}
+    
+    for lane in lanes.keys():
+        for car in lanes[lane]:
+            if not car.crossed and traffic_lights[lane].is_red():
+                stopped_cars[lane] += 1
+    
+    return max(stopped_cars.values())  # Get max stopped cars in a single lane
 
 class TrafficController:
     def __init__(self):
@@ -151,6 +162,11 @@ class TrafficController:
         self.is_yellow = False
     def update(self):
         self.timer += 1
+        stopped_cars = count_stopped_cars()
+        self.switch_time = max(4 * 60, (stopped_cars / 2) * 60)
+        if self.switch_time > 10*60:
+            self.switch_time = 10*60
+            print("max limit", self.switch_time) 
         if self.is_yellow:
             if self.timer >= self.yellow_time:
                 self.timer = 0
